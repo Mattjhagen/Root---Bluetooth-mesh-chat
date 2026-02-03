@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { meshService } from './services/meshService.ts';
 import { geminiService } from './services/geminiService.ts';
@@ -32,6 +33,11 @@ const App: React.FC = () => {
   const [activeTarget, setActiveTarget] = useState<string>(CHANNELS[0]);
   const [isChannel, setIsChannel] = useState(true);
   
+  // Dynamic Channel State
+  const [availableChannels, setAvailableChannels] = useState<string[]>(CHANNELS);
+  const [channelsMetadata, setChannelsMetadata] = useState(CHANNEL_METADATA);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -55,6 +61,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     requestNotificationPermission();
+    
+    // Responsive sidebar handling
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(true);
+      } else {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [requestNotificationPermission]);
 
   const triggerNotification = (title: string, body: string) => {
@@ -132,6 +149,32 @@ const App: React.FC = () => {
   }, [messages, activeTarget, isChannel]);
 
   const handleSendMessage = (text: string) => {
+    // Intercept /join command
+    if (text.startsWith('/join')) {
+      const parts = text.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        let channelName = parts[1];
+        if (!channelName.startsWith('#')) channelName = '#' + channelName;
+        
+        // Add new channel if it doesn't exist
+        if (!availableChannels.includes(channelName)) {
+            setAvailableChannels(prev => [...prev, channelName]);
+            setChannelsMetadata(prev => ({
+                ...prev,
+                [channelName]: {
+                    topic: `Custom node frequency: ${channelName}`,
+                    description: "User-initialized mesh channel."
+                }
+            }));
+        }
+        
+        setIsChannel(true);
+        setActiveTarget(channelName);
+        if (window.innerWidth < 1024) setIsSidebarOpen(false);
+      }
+      return; 
+    }
+
     let packet: BitchatPacket;
     if (isChannel) {
       packet = meshService.broadcast(text, activeTarget);
@@ -197,7 +240,7 @@ const App: React.FC = () => {
   const onlinePeers = useMemo(() => peers.filter(p => p.isOnline), [peers]);
 
   return (
-    <div className="flex h-screen bg-slate-950 font-sans text-slate-100 flex-col lg:flex-row safe-top safe-bottom">
+    <div className="flex h-screen bg-slate-950 font-sans text-slate-100 flex-col lg:flex-row safe-top safe-bottom overflow-hidden">
       
       {/* Modals */}
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title="System Config">
@@ -283,13 +326,13 @@ const App: React.FC = () => {
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Broadcast Topic</h4>
                 <p className="text-sm text-emerald-100 font-mono bg-slate-800/50 p-3 rounded-xl border border-slate-800">
-                  {CHANNEL_METADATA[activeTarget]?.topic || "Standard broadcast protocol."}
+                  {channelsMetadata[activeTarget]?.topic || "Standard broadcast protocol."}
                 </p>
               </div>
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Channel Description</h4>
                 <p className="text-xs text-slate-400 leading-relaxed italic">
-                  {CHANNEL_METADATA[activeTarget]?.description || "General purpose frequency."}
+                  {channelsMetadata[activeTarget]?.description || "General purpose frequency."}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
@@ -339,21 +382,34 @@ const App: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Sidebar Nav */}
-      <nav className="fixed bottom-0 left-0 w-full h-16 lg:h-screen lg:w-20 md:lg:w-24 bg-slate-900 border-t lg:border-t-0 lg:border-r border-slate-800 flex flex-row lg:flex-col items-center justify-around lg:justify-start lg:py-8 lg:gap-8 shadow-2xl z-50">
-        <div className="hidden lg:flex w-12 h-12 bg-gradient-to-tr from-emerald-600 to-green-600 rounded-2xl items-center justify-center shadow-lg shadow-emerald-500/20 mb-4 cursor-pointer hover:rotate-3 transition-transform">
+      {/* Sidebar Nav (Fixed) */}
+      <nav className="fixed bottom-0 left-0 w-full h-16 lg:h-screen lg:w-20 bg-slate-900 border-t lg:border-t-0 lg:border-r border-slate-800 flex flex-row lg:flex-col items-center justify-between lg:justify-start lg:py-8 shadow-2xl z-50 px-4 lg:px-0">
+        
+        {/* Toggle Button */}
+        <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all flex items-center justify-center lg:mb-6 active:scale-95"
+            title="Toggle Sidebar"
+        >
+            <i className={`fas ${isSidebarOpen ? 'fa-outdent' : 'fa-indent'}`}></i>
+        </button>
+
+        {/* Logo/Icon (Hidden on mobile to save space) */}
+        <div className="hidden lg:flex w-12 h-12 bg-gradient-to-tr from-emerald-600 to-green-600 rounded-2xl items-center justify-center shadow-lg shadow-emerald-500/20 mb-6 cursor-pointer hover:rotate-3 transition-transform">
           <i className="fas fa-terminal text-white text-xl"></i>
         </div>
         
-        <div className="flex flex-row lg:flex-col gap-8 lg:gap-6 flex-1 items-center justify-center">
-          <NavIcon icon="fa-comment-alt" active={activeTab === 'chats'} onClick={() => setActiveTab('chats')} label="Signals" color="emerald" />
-          <NavIcon icon="fa-microchip" active={activeTab === 'mesh'} onClick={() => setActiveTab('mesh')} label="Mesh" color="emerald" />
-          <NavIcon icon="fa-brain" active={activeTab === 'ai'} onClick={() => setActiveTab('ai')} label="Core" color="emerald" />
+        {/* Nav Items */}
+        <div className="flex flex-row lg:flex-col gap-6 flex-1 items-center justify-center lg:justify-start lg:w-full">
+          <NavIcon icon="fa-comment-alt" active={activeTab === 'chats'} onClick={() => { setActiveTab('chats'); if(window.innerWidth < 1024) setIsSidebarOpen(true); }} label="Signals" color="emerald" />
+          <NavIcon icon="fa-microchip" active={activeTab === 'mesh'} onClick={() => { setActiveTab('mesh'); if(window.innerWidth < 1024) setIsSidebarOpen(true); }} label="Mesh" color="emerald" />
+          <NavIcon icon="fa-brain" active={activeTab === 'ai'} onClick={() => { setActiveTab('ai'); if(window.innerWidth < 1024) setIsSidebarOpen(true); }} label="Core" color="emerald" />
           <div className="lg:hidden">
              <NavIcon icon="fa-sliders-h" active={false} onClick={() => setIsSettingsOpen(true)} label="Config" color="emerald" />
           </div>
         </div>
 
+        {/* User Profile (Desktop) */}
         <div className="hidden lg:flex flex-col gap-6 items-center">
           <NavIcon icon="fa-sliders-h" active={false} onClick={() => setIsSettingsOpen(true)} label="Config" color="emerald" />
           <button 
@@ -364,6 +420,7 @@ const App: React.FC = () => {
           </button>
         </div>
         
+        {/* User Profile (Mobile) */}
         <div className="lg:hidden">
             <button 
               onClick={() => setIsProfileOpen(true)}
@@ -374,180 +431,198 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Sidebar Content */}
-      <aside className="hidden lg:flex w-80 flex-col bg-slate-950 border-r border-slate-900 overflow-hidden z-10">
-        {activeTab === 'chats' && (
-          <div className="flex flex-col h-full">
-            <div className="p-6">
-              <h1 className="text-2xl font-black mb-1 tracking-tighter text-emerald-400 text-glow">ROOT</h1>
-              <div className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px_#10b981] ${onlinePeers.length > 0 ? 'bg-emerald-500' : 'bg-slate-700'}`}></span>
-                <p className="text-slate-500 text-[10px] font-mono uppercase tracking-widest">Neighbor Nodes: {peers.filter(p => p.isOnline).length}</p>
+      {/* Main Content Wrapper (Handles desktop margin) */}
+      <div className="flex-1 flex flex-col lg:flex-row h-full lg:pl-20 transition-all duration-300">
+
+        {/* Sidebar Drawer */}
+        <aside className={`
+            fixed inset-y-0 left-0 z-40 bg-slate-950 border-r border-slate-900 
+            transition-all duration-300 ease-in-out
+            lg:relative lg:inset-auto lg:z-auto
+            ${/* Mobile: Bottom spacing for nav */ 'bottom-16 lg:bottom-0'}
+            ${/* Width Transition */ isSidebarOpen ? 'w-80 translate-x-0 opacity-100' : 'w-0 -translate-x-full opacity-0 lg:w-0 lg:-translate-x-full lg:overflow-hidden'}
+            ${/* Shadow on mobile */ 'shadow-2xl lg:shadow-none'}
+        `}>
+          {activeTab === 'chats' && (
+            <div className="flex flex-col h-full w-80">
+              <div className="p-6">
+                <h1 className="text-2xl font-black mb-1 tracking-tighter text-emerald-400 text-glow">ROOT</h1>
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px_#10b981] ${onlinePeers.length > 0 ? 'bg-emerald-500' : 'bg-slate-700'}`}></span>
+                  <p className="text-slate-500 text-[10px] font-mono uppercase tracking-widest">Neighbor Nodes: {peers.filter(p => p.isOnline).length}</p>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto px-4 space-y-6 pb-6">
-              <section>
-                <div className="flex items-center justify-between mb-3 px-2">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Channels</h3>
-                </div>
-                <div className="space-y-1">
-                  {CHANNELS.map(ch => (
-                    <SidebarItem 
-                      key={ch} 
-                      label={ch} 
-                      active={isChannel && activeTarget === ch} 
-                      onClick={() => { setIsChannel(true); setActiveTarget(ch); }}
-                      icon="fa-hashtag"
-                      color="emerald"
-                    />
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <div className="flex items-center justify-between mb-3 px-2">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Peripheral Peers</h3>
-                </div>
-                <div className="space-y-1">
-                  {peers.length === 0 && (
-                    <p className="px-2 text-[10px] text-slate-600 italic">Scanning airwaves for signals...</p>
-                  )}
-                  {peers.map(peer => (
-                    <SidebarItem 
-                      key={peer.id} 
-                      label={peer.nickname} 
-                      active={!isChannel && activeTarget === peer.id} 
-                      onClick={() => { setIsChannel(false); setActiveTarget(peer.id); }}
-                      icon="fa-satellite-dish"
-                      color="emerald"
-                      online={peer.isOnline}
-                      subtitle={`RSSI: ${peer.rssi.toFixed(0)} dBm`}
-                    />
-                  ))}
-                </div>
-              </section>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'mesh' && (
-          <div className="p-6 space-y-6 h-full overflow-y-auto">
-            <h2 className="text-xl font-black tracking-tight text-emerald-400 uppercase italic">Topology Map</h2>
-            <MeshVisualization peers={peers} myId={myPeer.id} />
-            <div className="space-y-3">
-              <StatCard label="Packets Bridged" value={meshStats.relayed} icon="fa-route" color="text-emerald-400" />
-              <StatCard label="Uptime Mode" value={batteryMode} icon="fa-bolt" color="text-emerald-400" />
-              <StatCard label="Kernel Version" value="ROOT-OS v2.4" icon="fa-layer-group" color="text-emerald-400" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'ai' && (
-          <div className="p-6 h-full flex flex-col">
-            <h2 className="text-xl font-black mb-4 tracking-tight text-emerald-400">CORE INTERFACE</h2>
-            <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-2">
-              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl text-[11px] text-emerald-200 leading-relaxed shadow-sm">
-                 Accessing the Root System Assistant for protocol queries and decentralized data retrieval.
-              </div>
-              <button 
-                onClick={getGlobalInsights}
-                disabled={aiLoading}
-                className="w-full p-4 bg-slate-900 border border-slate-800 rounded-2xl text-xs text-slate-300 hover:bg-slate-800 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-3 group active:scale-95"
-              >
-                <i className="fas fa-globe group-hover:rotate-12 transition-transform"></i> 
-                {aiLoading ? 'Broadcasting Query...' : 'Fetch Global Mesh Trends'}
-              </button>
               
-              {searchInsights && (
-                <div className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-[10px] space-y-3 shadow-lg">
-                  <h4 className="font-bold text-emerald-500 uppercase tracking-tighter">Grounding Signal:</h4>
-                  <p className="text-slate-400 leading-relaxed">{searchInsights.text}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </aside>
-
-      {/* Main Content Area */}
-      <main className="flex-1 bg-slate-950 flex flex-col overflow-hidden relative pb-16 lg:pb-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-600/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-        {activeTab === 'chats' ? (
-          <ChatInterface 
-            activeTarget={isChannel ? activeTarget : peers.find(p => p.id === activeTarget)?.nickname || 'Unidentified Node'} 
-            messages={isChannel ? channelMessages : privateChatMessages} 
-            onSendMessage={handleSendMessage}
-            isChannel={isChannel}
-            onShowInfo={() => setIsInfoOpen(true)}
-            onlinePeers={onlinePeers}
-            memberCount={onlinePeers.length + 1}
-          />
-        ) : activeTab === 'mesh' ? (
-           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-in zoom-in duration-500">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 animate-pulse ${onlinePeers.length > 0 ? 'bg-emerald-600/10 border-emerald-600/20 glow-green' : 'bg-slate-800/10 border-slate-800/20'}`}>
-                <i className={`fas fa-network-wired text-4xl ${onlinePeers.length > 0 ? 'text-emerald-500' : 'text-slate-700'}`}></i>
-              </div>
-              <div className="max-w-md">
-                <h2 className="text-2xl font-black tracking-tighter text-emerald-400 uppercase italic">Kernel Active</h2>
-                <p className="text-slate-500 mt-2 leading-relaxed text-sm">
-                   {onlinePeers.length > 0 
-                    ? `Your interface is currently bridging ${onlinePeers.length} neighbors. Data integrity is nominal.` 
-                    : `No active neighbor nodes detected. Scanning local airwaves for mesh signals...`}
-                </p>
-              </div>
-              <div className="lg:hidden w-full max-w-sm">
-                <MeshVisualization peers={peers} myId={myPeer.id} />
-                <div className="grid grid-cols-2 gap-3 mt-6">
-                   <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold">Relayed</p>
-                      <p className="text-lg font-black text-emerald-400">{meshStats.relayed}</p>
-                   </div>
-                   <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold">Mode</p>
-                      <p className="text-lg font-black text-emerald-400">{batteryMode.split(' ')[0]}</p>
-                   </div>
-                </div>
-              </div>
-           </div>
-        ) : (
-           <div className="flex-1 bg-slate-900/40 m-2 rounded-3xl border border-slate-800 flex flex-col overflow-hidden shadow-2xl backdrop-blur-sm">
-             <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
-                <h3 className="font-black flex items-center gap-3 text-xs tracking-widest text-emerald-400 uppercase">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600/10 flex items-center justify-center">
-                    <i className="fas fa-robot text-emerald-500 text-xs"></i>
+              <div className="flex-1 overflow-y-auto px-4 space-y-6 pb-6">
+                <section>
+                  <div className="flex items-center justify-between mb-3 px-2">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Channels</h3>
                   </div>
-                  System Intelligence
-                </h3>
-             </div>
-             <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6">
-                {aiChat.length === 0 && (
-                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-center px-10 space-y-6">
-                     <i className="fas fa-code text-4xl text-slate-700"></i>
-                     <p className="text-xs italic">Awaiting technical query regarding Root Core architecture.</p>
-                   </div>
+                  <div className="space-y-1">
+                    {availableChannels.map(ch => (
+                      <SidebarItem 
+                        key={ch} 
+                        label={ch} 
+                        active={isChannel && activeTarget === ch} 
+                        onClick={() => { setIsChannel(true); setActiveTarget(ch); if(window.innerWidth < 1024) setIsSidebarOpen(false); }}
+                        icon="fa-hashtag"
+                        color="emerald"
+                      />
+                    ))}
+                  </div>
+                </section>
+
+                <section>
+                  <div className="flex items-center justify-between mb-3 px-2">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Peripheral Peers</h3>
+                  </div>
+                  <div className="space-y-1">
+                    {peers.length === 0 && (
+                      <p className="px-2 text-[10px] text-slate-600 italic">Scanning airwaves for signals...</p>
+                    )}
+                    {peers.map(peer => (
+                      <SidebarItem 
+                        key={peer.id} 
+                        label={peer.nickname} 
+                        active={!isChannel && activeTarget === peer.id} 
+                        onClick={() => { setIsChannel(false); setActiveTarget(peer.id); if(window.innerWidth < 1024) setIsSidebarOpen(false); }}
+                        icon="fa-satellite-dish"
+                        color="emerald"
+                        online={peer.isOnline}
+                        subtitle={`RSSI: ${peer.rssi.toFixed(0)} dBm`}
+                      />
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'mesh' && (
+            <div className="p-6 space-y-6 h-full overflow-y-auto w-80">
+              <h2 className="text-xl font-black tracking-tight text-emerald-400 uppercase italic">Topology Map</h2>
+              <MeshVisualization peers={peers} myId={myPeer.id} />
+              <div className="space-y-3">
+                <StatCard label="Packets Bridged" value={meshStats.relayed} icon="fa-route" color="text-emerald-400" />
+                <StatCard label="Uptime Mode" value={batteryMode} icon="fa-bolt" color="text-emerald-400" />
+                <StatCard label="Kernel Version" value="ROOT-OS v2.4" icon="fa-layer-group" color="text-emerald-400" />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="p-6 h-full flex flex-col w-80">
+              <h2 className="text-xl font-black mb-4 tracking-tight text-emerald-400">CORE INTERFACE</h2>
+              <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-2">
+                <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl text-[11px] text-emerald-200 leading-relaxed shadow-sm">
+                   Accessing the Root System Assistant for protocol queries and decentralized data retrieval.
+                </div>
+                <button 
+                  onClick={getGlobalInsights}
+                  disabled={aiLoading}
+                  className="w-full p-4 bg-slate-900 border border-slate-800 rounded-2xl text-xs text-slate-300 hover:bg-slate-800 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-3 group active:scale-95"
+                >
+                  <i className="fas fa-globe group-hover:rotate-12 transition-transform"></i> 
+                  {aiLoading ? 'Broadcasting Query...' : 'Fetch Global Mesh Trends'}
+                </button>
+                
+                {searchInsights && (
+                  <div className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-[10px] space-y-3 shadow-lg">
+                    <h4 className="font-bold text-emerald-500 uppercase tracking-tighter">Grounding Signal:</h4>
+                    <p className="text-slate-400 leading-relaxed">{searchInsights.text}</p>
+                  </div>
                 )}
-                {aiChat.map((chat, idx) => (
-                   <div key={idx} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-                      <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${chat.role === 'user' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 border border-slate-700 text-slate-200'}`}>
-                         <p className="whitespace-pre-wrap">{chat.text}</p>
-                      </div>
-                   </div>
-                ))}
-                {aiLoading && <div className="text-[10px] text-emerald-500 animate-pulse px-4">Processing mesh request...</div>}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* Mobile Backdrop */}
+        <div 
+            className={`fixed inset-0 bg-black/60 z-30 transition-opacity duration-300 lg:hidden ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            onClick={() => setIsSidebarOpen(false)}
+        />
+
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col overflow-hidden relative pb-16 lg:pb-0 min-w-0">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-600/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+          {activeTab === 'chats' ? (
+            <ChatInterface 
+              activeTarget={isChannel ? activeTarget : peers.find(p => p.id === activeTarget)?.nickname || 'Unidentified Node'} 
+              messages={isChannel ? channelMessages : privateChatMessages} 
+              onSendMessage={handleSendMessage}
+              isChannel={isChannel}
+              onShowInfo={() => setIsInfoOpen(true)}
+              onlinePeers={onlinePeers}
+              memberCount={onlinePeers.length + 1}
+              channelMetadata={isChannel ? channelsMetadata[activeTarget] : null}
+            />
+          ) : activeTab === 'mesh' ? (
+             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-in zoom-in duration-500">
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 animate-pulse ${onlinePeers.length > 0 ? 'bg-emerald-600/10 border-emerald-600/20 glow-green' : 'bg-slate-800/10 border-slate-800/20'}`}>
+                  <i className={`fas fa-network-wired text-4xl ${onlinePeers.length > 0 ? 'text-emerald-500' : 'text-slate-700'}`}></i>
+                </div>
+                <div className="max-w-md">
+                  <h2 className="text-2xl font-black tracking-tighter text-emerald-400 uppercase italic">Kernel Active</h2>
+                  <p className="text-slate-500 mt-2 leading-relaxed text-sm">
+                     {onlinePeers.length > 0 
+                      ? `Your interface is currently bridging ${onlinePeers.length} neighbors. Data integrity is nominal.` 
+                      : `No active neighbor nodes detected. Scanning local airwaves for mesh signals...`}
+                  </p>
+                </div>
+                <div className="lg:hidden w-full max-w-sm">
+                  <MeshVisualization peers={peers} myId={myPeer.id} />
+                  <div className="grid grid-cols-2 gap-3 mt-6">
+                     <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-left">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Relayed</p>
+                        <p className="text-lg font-black text-emerald-400">{meshStats.relayed}</p>
+                     </div>
+                     <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-left">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Mode</p>
+                        <p className="text-lg font-black text-emerald-400">{batteryMode.split(' ')[0]}</p>
+                     </div>
+                  </div>
+                </div>
              </div>
-             <div className="p-4 bg-slate-900/50 border-t border-slate-800">
-                <input 
-                  onKeyDown={(e) => { if (e.key === 'Enter') { askAssistant((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }}
-                  type="text" 
-                  placeholder="Query system core..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3.5 px-5 text-sm outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all text-emerald-400 placeholder:text-slate-700"
-                />
+          ) : (
+             <div className="flex-1 bg-slate-900/40 m-2 rounded-3xl border border-slate-800 flex flex-col overflow-hidden shadow-2xl backdrop-blur-sm">
+               <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+                  <h3 className="font-black flex items-center gap-3 text-xs tracking-widest text-emerald-400 uppercase">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600/10 flex items-center justify-center">
+                      <i className="fas fa-robot text-emerald-500 text-xs"></i>
+                    </div>
+                    System Intelligence
+                  </h3>
+               </div>
+               <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6">
+                  {aiChat.length === 0 && (
+                     <div className="h-full flex flex-col items-center justify-center opacity-40 text-center px-10 space-y-6">
+                       <i className="fas fa-code text-4xl text-slate-700"></i>
+                       <p className="text-xs italic">Awaiting technical query regarding Root Core architecture.</p>
+                     </div>
+                  )}
+                  {aiChat.map((chat, idx) => (
+                     <div key={idx} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                        <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${chat.role === 'user' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 border border-slate-700 text-slate-200'}`}>
+                           <p className="whitespace-pre-wrap">{chat.text}</p>
+                        </div>
+                     </div>
+                  ))}
+                  {aiLoading && <div className="text-[10px] text-emerald-500 animate-pulse px-4">Processing mesh request...</div>}
+               </div>
+               <div className="p-4 bg-slate-900/50 border-t border-slate-800">
+                  <input 
+                    onKeyDown={(e) => { if (e.key === 'Enter') { askAssistant((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }}
+                    type="text" 
+                    placeholder="Query system core..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3.5 px-5 text-sm outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all text-emerald-400 placeholder:text-slate-700"
+                  />
+               </div>
              </div>
-           </div>
-        )}
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   );
 };
