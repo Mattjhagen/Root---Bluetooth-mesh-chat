@@ -201,7 +201,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Messages List */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 transition-all duration-300">
           {filteredMessages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-slate-700 space-y-4">
               <div className="w-16 h-16 rounded-full bg-slate-800/20 flex items-center justify-center border border-slate-800/30">
@@ -237,26 +237,46 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           ))}
         </div>
 
-        {/* IRC Names (User List) Sidebar */}
+        {/* IRC Names (User List) Sidebar - Responsive */}
         {isChannel && showUserList && (
-          <div className="w-48 lg:w-56 bg-slate-900/90 border-l border-slate-800 overflow-y-auto animate-in slide-in-from-right-4 duration-300 z-10 hidden md:block">
-            <div className="p-4 border-b border-slate-800">
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Peer List</h3>
-              <p className="text-[9px] text-emerald-500/70 font-mono">Active Nodes ({memberCount})</p>
-            </div>
-            <div className="p-2 space-y-1">
-              <div className="flex items-center gap-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <span className="text-xs font-mono font-bold text-white">@Me</span>
-              </div>
-              {onlinePeers.map(peer => (
-                <div key={peer.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 transition-colors group">
-                  <div className={`w-2 h-2 rounded-full ${peer.isOnline ? 'bg-emerald-500/50' : 'bg-slate-700'}`}></div>
-                  <span className="text-xs font-mono text-slate-400 group-hover:text-slate-200 truncate flex-1">{peer.nickname}</span>
+          <>
+            {/* Mobile Backdrop */}
+            <div 
+              className="md:hidden fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-30 animate-in fade-in duration-300" 
+              onClick={() => setShowUserList(false)}
+            />
+            
+            <div className="absolute md:relative inset-y-0 right-0 w-64 md:w-48 lg:w-56 bg-slate-900/95 md:bg-slate-900/90 border-l border-slate-800 overflow-y-auto animate-in slide-in-from-right-4 duration-300 z-40 md:z-10 shadow-2xl md:shadow-none">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Peer List</h3>
+                  <p className="text-[9px] text-emerald-500/70 font-mono">Active Nodes ({memberCount})</p>
                 </div>
-              ))}
+                {/* Mobile Close Button */}
+                <button 
+                  onClick={() => setShowUserList(false)}
+                  className="md:hidden w-8 h-8 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center hover:text-white transition-colors"
+                >
+                  <i className="fas fa-times text-xs"></i>
+                </button>
+              </div>
+              <div className="p-2 space-y-1">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                  <span className="text-xs font-mono font-bold text-white">@Me</span>
+                </div>
+                {onlinePeers.map(peer => (
+                  <div key={peer.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 transition-colors group">
+                    <div className={`w-2 h-2 rounded-full ${peer.isOnline ? 'bg-emerald-500/50' : 'bg-slate-700'}`}></div>
+                    <span className="text-xs font-mono text-slate-400 group-hover:text-slate-200 truncate flex-1">{peer.nickname}</span>
+                  </div>
+                ))}
+                {onlinePeers.length === 0 && (
+                  <p className="p-4 text-[10px] font-mono text-slate-600 text-center italic">No other nodes bridged</p>
+                )}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
