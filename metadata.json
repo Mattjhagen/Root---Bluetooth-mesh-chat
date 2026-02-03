@@ -1,0 +1,9 @@
+{
+  "name": "Root - The Mesh Core",
+  "description": "A decentralized, P2P messaging application operating over a simulated Bluetooth mesh network with end-to-end encryption and Gemini AI assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

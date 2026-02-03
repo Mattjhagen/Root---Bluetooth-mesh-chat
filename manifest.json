@@ -1,0 +1,19 @@
+
+{
+  "name": "Root Mesh Messenger",
+  "short_name": "Root",
+  "description": "Decentralized P2P mesh messenger network",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#22c55e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

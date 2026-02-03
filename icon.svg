@@ -1,0 +1,25 @@
+
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" fill="#0F172A"/>
+  <!-- Glowing Effect -->
+  <defs>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <!-- Circuit Tree Structure -->
+  <g filter="url(#glow)">
+    <path d="M256 380V320M256 320L210 280M256 320L302 280M210 280V240M302 280V240" stroke="#22C55E" stroke-width="12" stroke-linecap="round"/>
+    <path d="M210 240L160 200M210 240L240 210M302 240L352 200M302 240L272 210" stroke="#22C55E" stroke-width="10" stroke-linecap="round"/>
+    <!-- Root Branches -->
+    <path d="M256 100V180M256 180L180 230M256 180L332 230" stroke="#22C55E" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="256" cy="100" r="10" fill="#4ADE80"/>
+    <circle cx="180" cy="230" r="8" fill="#4ADE80"/>
+    <circle cx="332" cy="230" r="8" fill="#4ADE80"/>
+    <circle cx="160" cy="200" r="6" fill="#4ADE80"/>
+    <circle cx="352" cy="200" r="6" fill="#4ADE80"/>
+    <!-- Terminal Prompt at bottom -->
+    <path d="M235 420L250 435L235 450M260 450H285" stroke="#22C55E" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
